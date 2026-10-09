@@ -3,11 +3,11 @@ import { homedir } from "node:os";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import type { AgentSession, SessionInfo } from "@earendil-works/pi-coding-agent";
 import {
-  AuthStorage,
   createAgentSession,
   DefaultResourceLoader,
   getAgentDir,
   ModelRegistry,
+  ModelRuntime,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import type { FeishuBridgeRuntime } from "./bridge-runtime.js";
@@ -38,16 +38,22 @@ export class ConversationManager {
   private readonly sessions = new Map<string, Promise<AgentSession>>();
   private readonly queues = new Map<string, Promise<void>>();
   private readonly activeRuns = new Map<string, ActiveRun>();
-  private readonly authStorage = AuthStorage.create();
-  private readonly modelRegistry = ModelRegistry.create(this.authStorage);
+  private readonly modelRegistry: ModelRegistry;
   private defaultProvider: string | undefined;
   private defaultModelId: string | undefined;
   private state: FeishuState;
 
-  constructor(
+  static async create(cwd: string, bridge?: FeishuBridgeRuntime) {
+    const modelRuntime = await ModelRuntime.create({ allowModelNetwork: false });
+    return new ConversationManager(cwd, modelRuntime, bridge);
+  }
+
+  private constructor(
     private readonly cwd: string,
+    private readonly modelRuntime: ModelRuntime,
     private readonly bridge?: FeishuBridgeRuntime,
   ) {
+    this.modelRegistry = new ModelRegistry(modelRuntime);
     ensureRoot();
     this.state = readJson<FeishuState>(STATE_PATH, { sessions: {} });
     this.state.sessions ||= {};
@@ -452,8 +458,7 @@ export class ConversationManager {
     const { session } = await createAgentSession({
       cwd: workspaceCwd,
       agentDir: getAgentDir(),
-      authStorage: this.authStorage,
-      modelRegistry: this.modelRegistry,
+      modelRuntime: this.modelRuntime,
       model,
       sessionManager,
       resourceLoader: loader,

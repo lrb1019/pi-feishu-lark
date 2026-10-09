@@ -25,7 +25,7 @@ import {
 import { BotUnavailableError, FeishuTransport } from "./transport.js";
 import type { FeishuConfig, FeishuStatus } from "./types.js";
 
-export default function feishuExtension(pi: ExtensionAPI) {
+export default async function feishuExtension(pi: ExtensionAPI) {
   if (process.env[CHILD_SESSION_ENV] === "1") {
     return;
   }
@@ -38,7 +38,7 @@ export default function feishuExtension(pi: ExtensionAPI) {
   const bridgeStore = new FeishuBridgeStore();
   const delivery = new FeishuDelivery(() => transport);
   const bridge = new FeishuBridgeRuntime(bridgeStore, delivery);
-  const conversations = new ConversationManager(process.cwd(), bridge);
+  const conversations = await ConversationManager.create(process.cwd(), bridge);
   const messageHandler = new FeishuMessageHandler(conversations, () => transport, bridgeStore);
 
   const STATUS_KEY = "feishu-connection";
